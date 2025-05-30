@@ -17,6 +17,7 @@ const tempQuaternion_A = new THREE.Quaternion();
 const tempQuaternion_B = new THREE.Quaternion();
 const tempQuaternion_C = new THREE.Quaternion();
 const handednesses = ['left', 'right', 'none'];
+const cachedMagnetTarget = []
 
 const joints = [
   "wrist",
@@ -188,7 +189,20 @@ AFRAME.registerComponent("handy-controls", {
     }).observe(this.el, { attributes: true, subtree: true });
   },
 
-  getMagnetTargets(el) {
+  getMagnetTargets(el, time) {
+    // If not enough time has passed, return an array with the current target or empty array
+    const prevCheckTime = el.object3D.userData.prevCheckTime;
+    if (prevCheckTime && (time - prevCheckTime < 100)) {
+      const magnetTarget = el.object3D.userData.magnetTarget;
+      if (magnetTarget) {
+        cachedMagnetTarget[0] = magnetTarget;
+        return cachedMagnetTarget;
+      }
+      cachedMagnetTarget.length = 0;
+      return cachedMagnetTarget;
+    }
+    el.object3D.userData.prevCheckTime = time;
+
     const magnetTargets = this.magnetTargets.get(el);
     if (magnetTargets === null) {
       const magnetTargets = document.getElementsByClassName(el.dataset.magnet);
@@ -367,7 +381,7 @@ AFRAME.registerComponent("handy-controls", {
     return null;
   },
 
-  tick() {
+  tick(time) {
     const self = this;
     const session = this.el.sceneEl.xrSession;
     if (!session) return;
@@ -559,11 +573,11 @@ AFRAME.registerComponent("handy-controls", {
           prevGamePads.set(inputSource, data);
         }
       }
-      
+
       if (magnetEl) {
         this.el.object3D.getWorldQuaternion(tempQuaternion_C).invert();
         magnetEl.object3D.getWorldPosition(tempVector3_A);
-        for (const el of this.getMagnetTargets(magnetEl)) {
+        for (const el of this.getMagnetTargets(magnetEl, time)) {
           let magnetRange,fadeEnd,angleRange,angleEnd;
           const magnetRangeData = el.dataset.magnetRange;
           if (magnetRangeData) {
@@ -589,6 +603,10 @@ AFRAME.registerComponent("handy-controls", {
             }
           }
         }
+
+        // Cache the found target so throttled ticks keep re-checking it,
+        // even in the fade zone (fadeT <= 0.2) or if it has no id
+        magnetEl.object3D.userData.magnetTarget = magnetTarget;
 
         if (fadeT > 0.2 && magnetTarget && magnetTarget.id) {
           magnetEl.dataset.magnetTarget = magnetTarget.id;
