@@ -13,6 +13,7 @@ const changedAxes = new Set();
 
 const tempVector3_A = new THREE.Vector3();
 const tempVector3_B = new THREE.Vector3();
+const tempVector3_C = new THREE.Vector3();
 const tempQuaternion_A = new THREE.Quaternion();
 const tempQuaternion_B = new THREE.Quaternion();
 const tempQuaternion_C = new THREE.Quaternion();
@@ -586,7 +587,15 @@ AFRAME.registerComponent("handy-controls", {
       if (magnetEl) {
         this.el.object3D.getWorldQuaternion(tempQuaternion_C).invert();
         magnetEl.object3D.getWorldPosition(tempVector3_A);
-        for (const el of this.getMagnetTargets(magnetEl, time)) {
+        const magnetTargets = this.getMagnetTargets(magnetEl, time);
+        // The current target is followed with its up to date transform, the hand takes its rotation,
+        // also when the scan finds it again. Scanning the other targets reads the world matrices of the
+        // last render instead: getWorldPosition and getWorldQuaternion recompute the matrices of all the
+        // parents on each call.
+        const scanning = magnetTargets !== cachedMagnetTarget;
+        const currentTarget = magnetEl.object3D.userData.magnetTarget;
+        for (const el of magnetTargets) {
+          const fresh = !scanning || el === currentTarget;
           let magnetRange,fadeEnd,angleRange,angleEnd;
           const magnetRangeData = el.dataset.magnetRange;
           if (magnetRangeData) {
@@ -602,9 +611,19 @@ AFRAME.registerComponent("handy-controls", {
           fadeEnd = fadeEnd === undefined ? 0.1 : fadeEnd;
           angleRange = angleRange || 120;
           angleEnd = angleEnd === undefined ? 80 : angleEnd;
-          const d =  el.object3D.getWorldPosition(tempVector3_B).sub(tempVector3_A).length();
+          if (fresh) {
+            el.object3D.getWorldPosition(tempVector3_B);
+          } else {
+            tempVector3_B.setFromMatrixPosition(el.object3D.matrixWorld);
+          }
+          const d = tempVector3_B.sub(tempVector3_A).length();
           if (d < magnetRange) {
-            const Θ = (180/Math.PI) * el.object3D.getWorldQuaternion(tempQuaternion_A).premultiply(tempQuaternion_C).angleTo(magnetEl.object3D.quaternion);
+            if (fresh) {
+              el.object3D.getWorldQuaternion(tempQuaternion_A);
+            } else {
+              el.object3D.matrixWorld.decompose(tempVector3_B, tempQuaternion_A, tempVector3_C);
+            }
+            const Θ = (180/Math.PI) * tempQuaternion_A.premultiply(tempQuaternion_C).angleTo(magnetEl.object3D.quaternion);
             if (Θ < angleRange) {
               magnetTarget = el;
               fadeT = invlerp(magnetRange,fadeEnd,d) * invlerp(angleRange,angleEnd,Θ);
