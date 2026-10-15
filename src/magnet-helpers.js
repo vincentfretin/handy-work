@@ -194,7 +194,10 @@ the grab event. The "pickup" event will be fired on the object.
 If the object has \`data-pick-up="parent"\` set then the object's parent will be reparented to the hand element that fired
 the grab event. The "pickup" event will be fired on the object's parent.
 
-When either the release event is fired or the object stops being magnet target then it will consider itself released.
+While an object which isn't picked up is held, \`data-magnet-lock\` on the hand element names it, so it is the only one drawing the hand,
+even when it gets nearer another magnetic item.
+
+When either the release event is fired or the object stops being magnet target (the hand got out of its range) then it will consider itself released.
 it will reparent objects back to where they were originally and fire the "putdown" event on what was held if it had been picked up.
 If the held object has \`data-reset-transform\` set then it will also restore it's oriingal position. Otherwise the world position and rotation of the object will remain the same.
 
@@ -281,6 +284,8 @@ AFRAME.registerComponent("grab-magnet-target", {
 					el.object3D.position.sub(tempVector3);
 				}
 				el.emit('pickup', Object.assign({ by: this.el, byNoMagnet: this.data.noMagnetEl }, e && e.detail));
+			} else {
+				this.el.dataset.magnetLock = targetId;
 			}
 			el.emit('grabbed', Object.assign({ by: this.el, byNoMagnet: this.data.noMagnetEl }, e && e.detail));
 		}
@@ -307,6 +312,7 @@ AFRAME.registerComponent("grab-magnet-target", {
 				this.oldParent = null;
 				el.emit('putdown', Object.assign({ by: this.el, byNoMagnet: this.data.noMagnetEl }, e && e.detail));
 			}
+			delete this.el.dataset.magnetLock;
 			this.isGrabbing = false;
 			this.grabbedEl = null;
 			this.targetEl = null;

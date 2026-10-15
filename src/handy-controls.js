@@ -190,6 +190,15 @@ AFRAME.registerComponent("handy-controls", {
   },
 
   getMagnetTargets(el, time) {
+    // While it holds a target (data-magnet-lock, set by grab-magnet-target), nothing else draws the hand
+    const lockedEl = el.dataset.magnetLock && document.getElementById(el.dataset.magnetLock);
+    if (lockedEl) {
+      // Look for the targets again as soon as it lets go
+      el.object3D.userData.prevCheckTime = 0;
+      cachedMagnetTarget[0] = lockedEl;
+      cachedMagnetTarget.length = 1;
+      return cachedMagnetTarget;
+    }
     // If not enough time has passed, return an array with the current target or empty array
     const prevCheckTime = el.object3D.userData.prevCheckTime;
     if (prevCheckTime && (time - prevCheckTime < 100)) {
